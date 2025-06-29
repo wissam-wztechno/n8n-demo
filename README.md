@@ -121,6 +121,13 @@ CREATE TABLE workflow_metadata (
 );
 ```
 
+The workflow also assumes that the workflow_metadata table is prepopulated with a starting time for last_run_time. An example query for your convenience:
+
+```sql
+INSERT INTO workflow_metadata (key, value)
+VALUES ('last_run_time', '2025-01-01T00:00:00Z');
+```
+
 This workflow assumes a Slack webhook bot is setup for your organization and has access to post messages.
 More info: https://api.slack.com/messaging/webhooks
 
