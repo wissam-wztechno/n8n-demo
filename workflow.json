@@ -1,0 +1,928 @@
+{
+  "name": "Github Issues Tracker Demo",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "summarizationMethodAndPrompts": {
+            "values": {
+              "combineMapPrompt": "=Write a concise summary of the following without changing the meaning or giving your opinion:\n\n\n\"{text}\"\n\n\nCONCISE SUMMARY:",
+              "prompt": "Write a one-sentence summary of the following without changing the meaning or giving your opinion:\n\n\n\"{text}\"\n\n\nSHORT ONE-SENTENCE SUMMARY:"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainSummarization",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        -400
+      ],
+      "id": "94e7e9c8-92ea-404e-8d78-9643d31382e4",
+      "name": "Summarization Chain"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { body: $input.item.json.body };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        -400
+      ],
+      "id": "5f19f708-5ab0-4b02-8051-822bf168298b",
+      "name": "Get body"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  title: $input.item.json.title,\n  body: $input.item.json.body,\n  html_url: $input.item.json.url,\n  user_login: $input.item.json.user.login,\n  labels: $input.item.json.labels.map(label => label.name)\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        -400
+      ],
+      "id": "67e77e01-600b-45d3-b1bc-35dbedac8d97",
+      "name": "Parse relevant info from issues"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1048,
+        -180
+      ],
+      "id": "526f93c0-7be1-4ce5-a820-6754dec2e4d5",
+      "name": "GPT-3.5-Turbo",
+      "credentials": {
+        "openAiApi": {
+          "id": "jwomUe6iog4ublAW",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Title: \"{{ $('Parse relevant info from issues').item.json.title }}\" \nSummary: \"{{ $('Summarization Chain').item.json.output.text }}\" \nTags: [{{ $('Parse relevant info from issues').item.json.labels }}]  ",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an expert extraction algorithm. \n\nYou will be given the 'Title', 'Summary', and Tags (if they exist) of a Github issue created by a user. \nBased on this information, your job is to return a JSON object containing two keys, \"category\" and \"assigned_role\".  \n\nPossible values for \"category\" are: [\"bug\", \"feature request\", \"question\"] \nPossible values for \"assigned_role\" are: [\"engineering\", \"sales\", \"support\"]  \n\nBoth keys, \"category\" and \"assigned_role\" take one string as a value, so only choose one for each.  \n\n### \nExample input:  \n\nTitle: \"Login screen is freezing!\" \nSummary: \"The app is crashing when the user tries to login\" \nTags: [\"bug\", \"help wanted\"]  \n\nExample output: \n\n{   \n  \"category\": \"bug\",   \n  \"assigned_role\": \"engineering\" \n}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2088,
+        -400
+      ],
+      "id": "5fb58e49-af0a-41e7-9813-88f40041afa1",
+      "name": "Extract Category and Assigned Role"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.assigned_role }}",
+                    "rightValue": "=support",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d18b008f-c113-4f2c-bfd7-74d641435655"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Support"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00cd124a-4894-4f0d-8fc8-751e08f7a411",
+                    "leftValue": "={{ $json.output.assigned_role }}",
+                    "rightValue": "engineering",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Engineering"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "89981fed-1251-4600-a198-827713d52f97",
+                    "leftValue": "={{ $json.output.assigned_role }}",
+                    "rightValue": "sales",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Sales"
+            }
+          ]
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2464,
+        -400
+      ],
+      "id": "0fc76888-d74f-4035-9363-06648ea44e83",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Title: \"{{ $('Parse relevant info from issues').item.json.title }}\" \nSummary: \"{{ $('Summarization Chain').item.json.output.text }}\" \nTags: [{{ $('Parse relevant info from issues').item.json.labels }}]  ",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an expert extraction algorithm. \n\nYou will be given the 'Title', 'Summary', and Tags (if they exist) of a Github issue created by a user.\n\nBased on this information, your job is to return a JSON object containing one key: \"dynamic_tags\", an array of strings.  \n\nDynamic tags can be inspired - but not limited to - the actual 'Tags' (if provided).\n\nExample values for \"dynamic_tags\" are: [\"ui\", \"critical\", \"question\", \"bug\", \"api\", \"crash\", \"billing\", etc.]\n\n\n### \nExample input:  \n\nTitle: \"Login screen is freezing!\" \nSummary: \"The app is crashing when the user tries to login\" \nTags: [\"bug\", \"help wanted\"]  \n\nExample output: \n\n{   \n  \"dynamic_tags\": [\"bug\", \"crash\", \"authentication\"]\n}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1712,
+        -400
+      ],
+      "id": "cdc9b22c-d5c9-40bb-a280-62b51083cd45",
+      "name": "Generate Dynamic Tags"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1740,
+        -180
+      ],
+      "id": "fba5fecf-43df-43b1-9132-d34953be82b2",
+      "name": "GPT-3.5-Turbo2",
+      "credentials": {
+        "openAiApi": {
+          "id": "jwomUe6iog4ublAW",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2116,
+        -180
+      ],
+      "id": "d2ed7e63-f739-4337-8cc8-e2f3ef8f4f20",
+      "name": "GPT-3.5-Turbo3",
+      "credentials": {
+        "openAiApi": {
+          "id": "jwomUe6iog4ublAW",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{   \n  \"dynamic_tags\": [\"bug\", \"ui\", \"critical\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1860,
+        -180
+      ],
+      "id": "17befba3-3bf4-4661-8eee-11b05819669e",
+      "name": "Tags Output Parser"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"category\": \"bug\",\n\t\"assigned_role\": \"engineering\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2236,
+        -180
+      ],
+      "id": "6e2f546a-d5d2-4c53-a9d9-6ed9a6ecde75",
+      "name": "Category and Assigned Role Parser"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/wissam-wztechno/n8n-demo/issues?since={{ $json.value }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        -400
+      ],
+      "id": "fdeeb105-f50a-4c8e-b642-3817c07b2df5",
+      "name": "Fetch Github Issues since last run time",
+      "credentials": {
+        "githubApi": {
+          "id": "5T5j6ilPTssaMXg3",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "workflow_metadata",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "key",
+              "keyValue": "last_run_time"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        80,
+        -400
+      ],
+      "id": "bc703ff0-dd1f-40fa-a23f-54e71807bd1f",
+      "name": "Get Last Run Time from Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "OcK5XwI16i1KRvTp",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{ \"slack_webhook_url\": \"https://hooks.slack.com/services/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\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2684,
+        -600
+      ],
+      "id": "5ba4c6aa-edc6-46e6-8c6b-5d8d41b31b77",
+      "name": "Set Support Slack webhook"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{ \"slack_webhook_url\": \"https://hooks.slack.com/services/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\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2684,
+        -400
+      ],
+      "id": "4d36f9cc-8eb4-42a6-8401-5136247626a3",
+      "name": "Set Engineering Slack webhook1"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{ \"slack_webhook_url\": \"https://hooks.slack.com/services/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\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2684,
+        -200
+      ],
+      "id": "7b6785f9-5123-41c7-b8f7-474062cf50a2",
+      "name": "Set Sales Slack webhook"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2904,
+        -400
+      ],
+      "id": "77a04705-cc38-4a5e-bdcb-655eedf60d8d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.slack_webhook_url }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=🚨 New Github issue by {{ $('Parse relevant info from issues').all()[$itemIndex].json.user_login }}\nTitle: {{ $('Parse relevant info from issues').all()[$itemIndex].json.title }}\nLink: {{ $('Parse relevant info from issues').all()[$itemIndex].json.html_url }}\n\nSummary: {{ $('Summarization Chain').all()[$itemIndex].json.output.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3124,
+        -400
+      ],
+      "id": "45be30ae-2d5d-424b-bdd3-19db3ed2b0c7",
+      "name": "Send Slack message"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Title: \"{{ $('Parse relevant info from issues').item.json.title }}\" \nBody:  {{ $('Parse relevant info from issues').item.json.body.substring(0, 5000) }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an sentiment analysis algorithm. \n\nYou will be given the 'Title', and 'Body' of a Github issue created by a user. \nBased on this information, your job is to return a JSON object containing the \"sentiment\".\n\nPossible values for \"sentiment\" are: [\"positive\", \"negative\", \"neutral\"] \n\nThe sentiment will be parsed as a string, so only choose one, no less, no more.  \n\n### \nExample input:  \n\nTitle: \"Login screen is freezing!\" \nBody: \"The app is crashing every time I try to login, please fix, this is frustrating!!!\" \n\nExample output: \n\n{   \n  \"sentiment\": \"negative\",\n}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1336,
+        -400
+      ],
+      "id": "1bc7f4a8-0f57-46f9-aa83-357b15812a83",
+      "name": "Sentiment Analysis"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1364,
+        -180
+      ],
+      "id": "c30b3fdd-f3a3-424e-b69c-7e16589414d4",
+      "name": "GPT-3.5-Turbo1",
+      "credentials": {
+        "openAiApi": {
+          "id": "jwomUe6iog4ublAW",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"sentiment\": \"neutral\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1484,
+        -180
+      ],
+      "id": "e254beee-1336-4a59-8c76-7be3355413cd",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      new_last_run_time: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        -400
+      ],
+      "id": "4f84d926-5f4e-470b-84ee-5a0c17801881",
+      "name": "Get new last_run_time"
+    },
+    {
+      "parameters": {
+        "tableId": "enriched_issues",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldId": "creator_login",
+              "fieldValue": "={{ $json.creator_login }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "summary",
+              "fieldValue": "={{ $json.summary }}"
+            },
+            {
+              "fieldId": "assigned_role",
+              "fieldValue": "={{ $json.assigned_role }}"
+            },
+            {
+              "fieldId": "sentiment",
+              "fieldValue": "={{ $json.sentiment }}"
+            },
+            {
+              "fieldId": "tags",
+              "fieldValue": "={{ $json.tags }}"
+            },
+            {
+              "fieldId": "issue_url",
+              "fieldValue": "={{ $json.issue_url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3564,
+        -400
+      ],
+      "id": "cc3f057d-0cff-4093-a439-598e50178027",
+      "name": "Add Issues to Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "OcK5XwI16i1KRvTp",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "workflow_metadata",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "key",
+              "condition": "eq",
+              "keyValue": "last_run_time"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "value",
+              "fieldValue": "={{ $('Get new last_run_time').all()[$itemIndex].json.new_last_run_time }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3784,
+        -400
+      ],
+      "id": "10e96a7a-7aea-45eb-ba33-9ae902b0daf9",
+      "name": "Update last_run_time in Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "OcK5XwI16i1KRvTp",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -360,
+        -400
+      ],
+      "id": "0d1d16a0-8de1-4be8-989c-46f2d819cd5c",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('wis', $('Parse relevant info from issues').all()[0])\n\nconst output = $input.all().map((input, index) => {\n  return {\n    json: {\n      issue_url: $('Parse relevant info from issues').all()[index].json.html_url,\n      title: $('Parse relevant info from issues').all()[index].json.title,\n      creator_login: $('Parse relevant info from issues').all()[index].json.user_login,\n      summary: $('Summarization Chain').all()[index].json.output.text,\n      sentiment: $('Sentiment Analysis').all()[index].json.output.sentiment,\n      category: $('Extract Category and Assigned Role').all()[index].json.output.category,\n      assigned_role: $('Extract Category and Assigned Role').all()[index].json.output.assigned_role,\n      tags: $('Generate Dynamic Tags').all()[index].json.output.dynamic_tags\n    }\n  };\n});\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3344,
+        -400
+      ],
+      "id": "ccd9b286-e539-453e-ba5d-10798e526f1f",
+      "name": "Parse final data for Supabase"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get body": {
+      "main": [
+        [
+          {
+            "node": "Summarization Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse relevant info from issues": {
+      "main": [
+        [
+          {
+            "node": "Get body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarization Chain": {
+      "main": [
+        [
+          {
+            "node": "Sentiment Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-3.5-Turbo": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Summarization Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Category and Assigned Role": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Set Support Slack webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Engineering Slack webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Sales Slack webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-3.5-Turbo2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Dynamic Tags",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-3.5-Turbo3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract Category and Assigned Role",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tags Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Generate Dynamic Tags",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Category and Assigned Role Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Extract Category and Assigned Role",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Github Issues since last run time": {
+      "main": [
+        [
+          {
+            "node": "Parse relevant info from issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Last Run Time from Supabase": {
+      "main": [
+        [
+          {
+            "node": "Fetch Github Issues since last run time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Support Slack webhook": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Engineering Slack webhook1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Set Sales Slack webhook": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Send Slack message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Dynamic Tags": {
+      "main": [
+        [
+          {
+            "node": "Extract Category and Assigned Role",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack message": {
+      "main": [
+        [
+          {
+            "node": "Parse final data for Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sentiment Analysis": {
+      "main": [
+        [
+          {
+            "node": "Generate Dynamic Tags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-3.5-Turbo1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sentiment Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Sentiment Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get new last_run_time": {
+      "main": [
+        [
+          {
+            "node": "Get Last Run Time from Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Issues to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Update last_run_time in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get new last_run_time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse final data for Supabase": {
+      "main": [
+        [
+          {
+            "node": "Add Issues to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e7c9da82-466b-4208-9162-a898c681360d",
+  "meta": {
+    "templateId": "self-building-ai-agent",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "01af5ba2d4b53f9cf549b9e438256836db7c952b6c8ef412073bd2c99f0665d2"
+  },
+  "id": "KWuHToztMxXXyRtz",
+  "tags": []
+}
